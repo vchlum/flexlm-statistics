@@ -98,13 +98,12 @@ cat $TS_ALL_SORTED_LICENSE | awk -v mts=$MIN_TS 'BEGIN{out=0; last_check_ts=0}
 	}
 	if ($2 == "OUT:") {
 		if (node in lic)
-			{lic[node]++}
+			lic[node]++
 		else
-			{lic[node]=1}
+			lic[node]=1
 			
-		if (lic[node] == 1) {
+		if (lic[node] == 1)
 			out++
-		}
 
 		last[node]=$1
 	}
