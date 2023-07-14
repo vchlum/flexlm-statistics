@@ -17,6 +17,10 @@ USERS=(
 "vchlum"
 )
 
+USERS_AFFILIATION=(
+"vchlum@CESNET"
+)
+
 # hostanem regexp of nodes in exported data
 HOSTNAMES=".+cz"
 
@@ -32,6 +36,8 @@ TS_ALL_SORTED_USERS="${TS_ALL}_users"
 TS_ALL_SORTED_LICENSE="${TS_ALL_SORTED_USERS}_license"
 FINAL="final.dat"
 FINAL_PEAKS="final_day_peaks.dat"
+FINAL_OUT_NUMBER="final_out.dat"
+FINAL_HOURS="final_hours.dat"
 
 # add timestamps to all lines containing time of day in the log files
 # iterates over log files and adds timestamps
@@ -108,7 +114,7 @@ cat $TS_ALL_SORTED_USERS | awk  -v lic=$LICENSE '{if ($5 == lic && ($4 == "IN:" 
 # for 'out' records if first license is issued increases out
 # if 'in' includes 'shutdown', all licenses per this node are returned -> always decrease out and reset licenses on node
 # you can select if 'licenses out' or 'unique users' are printed out
-cat $TS_ALL_SORTED_LICENSE | awk -v mts=$MIN_TS 'BEGIN{out=0; last_check_ts=0}
+cat $TS_ALL_SORTED_LICENSE | awk -v mts=$MIN_TS 'BEGIN{out=0}
 {
 	node=$3
 	if ($2 == "IN:") {
@@ -133,8 +139,6 @@ cat $TS_ALL_SORTED_LICENSE | awk -v mts=$MIN_TS 'BEGIN{out=0; last_check_ts=0}
 			
 		if (lic[node] == 1)
 			out++
-
-		last[node]=$1
 	}
 
 	if ($2 == "RESET_OUT") {
@@ -215,3 +219,113 @@ cat $FINAL | awk -v mts=$MIN_TS 'BEGIN {
 			day=$1
 	}
 } END {print $1 " " max}' > $FINAL_PEAKS
+
+
+# institutions: number of liceses out
+AFFILIATION=""
+for USER in "${USERS_AFFILIATION[@]}" ; do
+	AFFILIATION="${USER};$AFFILIATION"
+done
+AFFILIATION=${AFFILIATION::-1}
+
+cat $TS_ALL_SORTED_LICENSE | awk -v mts=$MIN_TS -v affiliation=$AFFILIATION 'BEGIN {
+	split(affiliation, users, ";")
+	for (u in users) {
+		split(users[u], a, "@")
+		af_dic[a[1]] = a[2]
+	}
+}
+{
+	if ($2 == "OUT:") {
+		node=$3
+		split(node, n, "@")
+		institution=af_dic[n[1]]
+
+		if ($1 >= mts) {
+			if (institution in runs)
+				runs[institution]++
+			else
+				runs[institution]=1
+		}
+	}
+
+} END{
+	for (inst in runs) {
+		print inst " " runs[inst]
+	}
+}' | sort > $FINAL_OUT_NUMBER
+
+
+# institutions: license-hours
+cat $TS_ALL_SORTED_LICENSE | awk -v mts=$MIN_TS -v affiliation=$AFFILIATION 'BEGIN {
+	split(affiliation, users, ";")
+	for (u in users) {
+		split(users[u], a, "@")
+		institution=a[2]
+		af_dic[a[1]] = institution
+
+		license_time[institution] = 0
+
+		license_ts[institution][1]=""
+		split("", license_ts[institution])
+	}
+}
+{
+	node=$3
+	split(node, n, "@")
+	institution=af_dic[n[1]]
+
+	if ($2 == "IN:") {
+		l=length(license_ts[institution])
+		seconds=$1 - license_ts[institution][l]
+		delete license_ts[institution][l]
+
+		if ($1 >= mts)
+			license_time[institution]+=seconds
+
+		if ($5 == "(SHUTDOWN)") {
+			for (i = 2; i<=lic[node]; i++) {
+				l=length(license_ts[institution])
+				seconds=$1 - license_ts[institution][l]
+				delete license_ts[institution][l]
+
+				if ($1 >= mts)
+					license_time[institution]+=seconds
+			}
+		}
+
+		if ($5 == "(SHUTDOWN)") {
+			lic[node]=0
+		} else if (node in lic) {
+			lic[node]--
+		} else {
+			lic[node]=0
+		}
+	}
+	if ($2 == "OUT:") {
+		if (length(license_ts[institution]) > 0) {
+			l=length(license_ts[institution])
+			license_ts[institution][l+1] = $1
+		} else {
+			license_ts[institution][1]=""
+			split("", license_ts[institution])
+
+			license_ts[institution][1] = $1
+		}
+
+		if (node in lic)
+			lic[node]++
+		else
+			lic[node]=1
+	}
+
+	if ($2 == "RESET_OUT") {
+		split("", lic)
+	}
+
+} END{
+	for (inst in license_time) {
+		lt=license_time[inst]/3600
+		printf inst " %.0f\n", lt
+	}
+}' | sort > $FINAL_HOURS
