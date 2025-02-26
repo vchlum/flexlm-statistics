@@ -7,7 +7,8 @@ INIT_DATE="3/19/2020"
 INIT_DATE="10/13/2015"
 
 #timestamp - from when the data should be exported
-MIN_TS=1640995200
+MIN_TS=1704063600
+MAX_TS=1735685999
 
 # license of interest
 LICENSE="\"MATLAB\""
@@ -124,7 +125,7 @@ cat $TS_ALL_SORTED_USERS | awk  -v lic=$LICENSE '{
 # for 'out' records if first license is issued increases out
 # if 'in' includes 'shutdown', all licenses per this node are returned -> always decrease out and reset licenses on node
 # you can select if 'licenses out' or 'unique users' are printed out
-cat $TS_ALL_SORTED_LICENSE | awk -v mts=$MIN_TS 'BEGIN{out=0}
+cat $TS_ALL_SORTED_LICENSE | awk -v mints=$MIN_TS -v maxts=$MAX_TS 'BEGIN{out=0}
 {
 	node=$3
 	if ($2 == "IN:") {
@@ -157,13 +158,13 @@ cat $TS_ALL_SORTED_LICENSE | awk -v mts=$MIN_TS 'BEGIN{out=0}
 	}
 
 	# licenses out
-	if ($1 >= mts && 1 == 1) {
+	if ($1 >= mints && 1 == 1 && $1 <= maxts) {
 		datetime=strftime("%m/%d/%Y %H:%M:%S", $1)
 		print datetime " " $1 " " out
 	}
 
 	# unique users using licenses
-	if ($1 >= mts && 1 == 0) {
+	if ($1 >= mints && 1 == 0 && $1 <= maxts) {
 		datetime=strftime("%m/%d/%Y %H:%M:%S", $1)
 
 		split("", uniq_users)
@@ -190,8 +191,8 @@ cat $TS_ALL_SORTED_LICENSE | awk -v mts=$MIN_TS 'BEGIN{out=0}
 
 # eventually, the file containing one line per license change is transformed into file
 # where each line is one day containing peak of the day
-cat $FINAL | awk -v mts=$MIN_TS 'BEGIN {
-	tmp=strftime("%m/%d/%Y %H:%M:%S", mts)
+cat $FINAL | awk -v mints=$MIN_TS -v maxts=$MAX_TS 'BEGIN {
+	tmp=strftime("%m/%d/%Y %H:%M:%S", mints)
 	split(tmp, tmp_split, " ")
 	day=tmp_split[1]
 	max=0
@@ -239,7 +240,7 @@ for USER in "${USERS_AFFILIATION[@]}" ; do
 done
 AFFILIATION=${AFFILIATION::-1}
 
-cat $TS_ALL_SORTED_LICENSE | awk -v mts=$MIN_TS -v affiliation=$AFFILIATION 'BEGIN {
+cat $TS_ALL_SORTED_LICENSE | awk -v mints=$MIN_TS -v maxts=$MAX_TS -v affiliation=$AFFILIATION 'BEGIN {
 	split(affiliation, users, ";")
 	for (u in users) {
 		split(users[u], a, "@")
@@ -252,7 +253,7 @@ cat $TS_ALL_SORTED_LICENSE | awk -v mts=$MIN_TS -v affiliation=$AFFILIATION 'BEG
 		split(node, n, "@")
 		institution=af_dic[n[1]]
 
-		if ($1 >= mts) {
+		if ($1 >= mints && $1 <= maxts) {
 			if (institution in runs)
 				runs[institution]++
 			else
@@ -268,7 +269,7 @@ cat $TS_ALL_SORTED_LICENSE | awk -v mts=$MIN_TS -v affiliation=$AFFILIATION 'BEG
 
 
 # institutions: license-hours
-cat $TS_ALL_SORTED_LICENSE | awk -v mts=$MIN_TS -v affiliation=$AFFILIATION 'BEGIN {
+cat $TS_ALL_SORTED_LICENSE | awk -v mints=$MIN_TS -v maxts=$MAX_TS -v affiliation=$AFFILIATION 'BEGIN {
 	split(affiliation, users, ";")
 	for (u in users) {
 		split(users[u], a, "@")
@@ -291,7 +292,7 @@ cat $TS_ALL_SORTED_LICENSE | awk -v mts=$MIN_TS -v affiliation=$AFFILIATION 'BEG
 		seconds=$1 - license_ts[institution][l]
 		delete license_ts[institution][l]
 
-		if ($1 >= mts)
+		if ($1 >= mints && $1 <= maxts)
 			license_time[institution]+=seconds
 
 		if ($5 == "(SHUTDOWN)") {
@@ -300,7 +301,7 @@ cat $TS_ALL_SORTED_LICENSE | awk -v mts=$MIN_TS -v affiliation=$AFFILIATION 'BEG
 				seconds=$1 - license_ts[institution][l]
 				delete license_ts[institution][l]
 
-				if ($1 >= mts)
+				if ($1 >= mints && $1 <= maxts)
 					license_time[institution]+=seconds
 			}
 		}
