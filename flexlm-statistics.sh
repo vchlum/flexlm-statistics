@@ -4,11 +4,11 @@
 
 #initial date of flexlm log
 INIT_DATE="3/19/2020"
-INIT_DATE="10/13/2015"
+INIT_DATE="3/17/2020"
 
 #timestamp - from when the data should be exported
-MIN_TS=1704063600
-MAX_TS=1735685999
+MIN_TS=1672531200
+MAX_TS=1751327999
 
 # license of interest
 LICENSE="\"MATLAB\""
@@ -24,7 +24,7 @@ USERS_AFFILIATION=(
 )
 
 # hostanem regexp of nodes in exported data
-HOSTNAMES=".*cz"
+HOSTNAMES=".*.cz$"
 
 USERS=".*"
 HOSTNAMES=".*"
@@ -131,15 +131,18 @@ cat $TS_ALL_SORTED_LICENSE | awk -v mints=$MIN_TS -v maxts=$MAX_TS 'BEGIN{out=0}
 	if ($2 == "IN:") {
 		if ($5 == "(SHUTDOWN)") {
 			lic[node]=0
-			out--
+			if (out > 0)
+				out--
 		} else if (node in lic) {
 			lic[node]--
 			if (lic[node] == 0) {
-				out--
+				if (out > 0)
+					out--
 			}
 		} else {
 			lic[node]=0
-			out--
+			if (out > 0)
+				out--
 		}
 	}
 	if ($2 == "OUT:") {
